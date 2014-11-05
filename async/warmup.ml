@@ -1,6 +1,5 @@
 open Async.Std
 
-
 let fork (d: 'a Deferred.t) (f1: 'a -> 'b Deferred.t) (f2: 'a -> 'c Deferred.t) : unit =
 	ignore(d >>= (fun x -> Deferred.both (f1 x) (f2 x)))
 

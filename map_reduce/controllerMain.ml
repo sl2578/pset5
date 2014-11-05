@@ -26,6 +26,7 @@ let run_remote name args addresses =
   List.iter print_endline addresses;
   let hps = List.map split_host_and_port addresses in
   RemoteController.init hps;
+  print_endline "hello";
   AppMain.main args >>| fun () -> (shutdown 0)
 
 let () =

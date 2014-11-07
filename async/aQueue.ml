@@ -1,12 +1,14 @@
 open Async.Std
 
-type 'a t
+type 'a t = 'a Pipe.Reader.t * 'a Pipe.Writer.t
 
-let create () =
-  failwith "I'm tiwed.  Tiwed of playing the game"
+let create () = Pipe.create ()
 
-let push q x =
-  failwith "Ain't it a cryin shame?"
+let push q x = 
+	match q with
+	| (r, w) -> Pipe.write_without_pushback w x
+
 
 let pop  q =
-  failwith "I'm so tiwed."
+  match q with
+  | (r, w) -> Pipe.read r 

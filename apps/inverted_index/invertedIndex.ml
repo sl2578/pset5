@@ -8,18 +8,27 @@ type filename = string
 (******************************************************************************)
 
 module Job = struct
-  type input
-  type key
-  type inter
-  type output
+  type doc = string
+  type content = string
+  type word = string
+
+  type input = doc * content
+  type key = word
+  type inter = doc
+  type output = doc list
 
   let name = "index.job"
 
-  let map input : (key * inter) list Deferred.t =
-    failwith "I'm stepping through the door / And I'm floating in a most peculiar way / And the stars look very different today"
+  (* parse each document content, emit (word, doc) pairs *)
+  let map (input : input) : (key * inter) list Deferred.t =
+    match input with
+    | (doc, content) ->
+      let words = AppUtils.split_words content in
+      return (List.fold_left (fun acc word -> (word, doc)::acc) [] words)
 
-  let reduce (key, inters) : output Deferred.t =
-    failwith "Here am I floating round my tin can / Far above the Moon / Planet Earth is blue / And there's nothing I can do."
+  (* return list of docs *)
+  let reduce (_, inters) : output Deferred.t =
+    return inters
 end
 
 (* register the job *)
@@ -61,7 +70,10 @@ module App  = struct
     (** The input should be a single file name.  The named file should contain
         a list of files to index. *)
     let main args =
-      failwith "Can you hear me, Major Zardoz? Can you hear me, Major Zardoz? Can you hear me, Major Zardoz?"
+      if (List.length args) <> 1 then failwith "Please provide one master file."
+      else read (List.hd args)
+        >>= MR.map_reduce
+        >>| output
   end
 end
 

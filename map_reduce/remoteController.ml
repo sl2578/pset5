@@ -1,7 +1,8 @@
 open Async.Std
 
-let init addrs =
-  failwith "Where you headed, cowboy?"
+let addr = ref []
+
+let init addrs = addr := addrs; ()
 
 exception InfrastructureFailure
 exception MapFailure of string
@@ -13,7 +14,34 @@ module Make (Job : MapReduce.Job) = struct
      find the data structures and functions you implemented in the warmup
      useful. Or, you can pass [~how:`Parallel] as an argument to the
      [Deferred.List] functions.*)
-  let map_reduce inputs =
-    failwith "Nowhere special."
+
+
+ (*  let reduce (k, vs) =
+    Job.reduce (k, vs) >>| fun out -> (k, out)
+
+  module C = Combiner.Make(Job)*)
+
+  let deferred_map (l: 'a list) (f: 'a -> 'b Deferred.t) : 'b list Deferred.t =
+	(* convert 'a list to 'b deferred list *)
+	let list_of_deferred = 
+		List.fold_right (fun acc x -> (f x)::acc) l [] in 
+	(* convert 'b deferred list to 'b list differed *)
+	List.fold_right 
+	(fun x acc -> 
+		x >>= (fun h -> 
+		acc >>= (fun t -> 
+		Deferred.return (h::t)))) 
+		list_of_deferred (Deferred.return [])
+
+  let map_reduce inputs = 
+  	(deferred_map (!addr) 
+  	(match x with 
+  	| (host, port) -> try Tcp.connect(Tcp.to_host_and_port host port)) 
+  						with InfrastructureFailure -> "cannot make connection")
+    (* deferred_map inputs Job.map
+    >>| List.flatten
+    >>| C.combine
+    >>= deferred_map inputs reduce *)
 end
+
 

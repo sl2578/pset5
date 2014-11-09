@@ -8,11 +8,24 @@ module Job = struct
 
   let name = "friends.job"
 
-  let map (name, friendlist) =
-    failwith "TODO"
+  let map ((name, friendlist) : input ) =
+    let remove_friend friend friendlist =
+      List.filter (fun elm -> elm <> friend) friendlist in
+    let create_pair acc friend =
+      let k = if name <= friend then (name, friend) else (friend, name) in
+      let inter = remove_friend friend friendlist in
+      (k, inter)::acc in
+    return (List.fold_left create_pair [] friendlist)
 
   let reduce (_, friendlists) =
-    failwith "TODO"
+    let friendlist = List.flatten friendlists in
+    (* find number occurences of an element in list *)
+    let occurences elm lst =
+      List.length (List.find_all (fun x -> elm = x) lst) in
+    let helper friends fr =
+      if ((occurences fr friendlist) > 1) && not (List.mem fr friends)
+      then fr::friends else friends in
+    return (List.fold_left helper [] friendlist)
 end
 
 let () = MapReduce.register_job (module Job)
@@ -55,7 +68,7 @@ module App = struct
         >>= MR.map_reduce
         (* replace this failwith with print once you've figured out the key and
            inter types*)
-        >>| fun _ -> failwith "TODO"
+        >>| print
   end
 end
 

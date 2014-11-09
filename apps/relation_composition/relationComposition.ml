@@ -6,17 +6,17 @@ type relation = R | S
 module Job = struct  
   type input  = relation * string * string
   type key    = string 
-  type inter  = unit (* TODO: choose an appropriate type *)
+  type inter  = relation * string
   type output = (string * string) list
 
   let name = "composition.job"
 
-  let map (r, x, y) : (string * (relation * string)) =
-    match r with
-    | R -> return (y, (R, x))
-    | S -> return (x, (S, y))
+  let map (input : input) =
+    match input with
+    | (R, x, y) -> return ([y, (R, x)])
+    | (S, x, y) -> return ([x, (S, y)])
 
-  let reduce (k, vs) = (* currently takes O(n^2) where n = # values *)
+  let reduce ((k : key), (vs : inter list)) = (* currently takes O(n^2) where n = # values *)
     (* for given pair, add all relations found with rest of values *)
     let find_relation acc (r, v) =
       match r with
@@ -27,14 +27,8 @@ module Job = struct
             | S -> (v, v2)::acc
             | R -> acc)
           acc vs
-      | S ->
-        List.fold_left
-          (fun acc (r2, v2) ->
-            match r2 with
-            | R -> (v, v2)::acc
-            | S -> acc)
-          acc vs
-    List.fold_left find_relation [] vs
+      | S -> acc in
+    return (List.fold_left find_relation [] vs)
 end
 
 let () = MapReduce.register_job (module Job)

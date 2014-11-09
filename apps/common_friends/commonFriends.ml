@@ -2,8 +2,8 @@ open Async.Std
 
 module Job = struct
   type input  = string * string list
-  type key    = unit (* TODO: choose an appropriate type *)
-  type inter  = unit (* TODO: choose an appropriate type *)
+  type key    = string * string
+  type inter  = string list
   type output = string list
 
   let name = "friends.job"

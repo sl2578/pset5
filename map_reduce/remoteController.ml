@@ -35,9 +35,11 @@ module Make (Job : MapReduce.Job) = struct
 
   let map_reduce inputs = 
   	(deferred_map (!addr) 
-  	(match x with 
-  	| (host, port) -> try Tcp.connect(Tcp.to_host_and_port host port)) 
-  						with InfrastructureFailure -> "cannot make connection")
+  	(fun x -> match x with 
+  	| (host, port) -> 
+  		try Tcp.connect(Tcp.to_host_and_port host port)) 
+  		with InfrastructureFailure -> "cannot make connection to port: %i" port)
+  )
     (* deferred_map inputs Job.map
     >>| List.flatten
     >>| C.combine

@@ -1,8 +1,13 @@
 open Async.Std
+open AQueue
 
 let addr = ref []
 
-let init addrs = addr := addrs; ()
+let num_workers = ref 0
+
+let init addrs = addr := addrs; num_workers := List.length !addr; ()
+
+
 
 exception InfrastructureFailure
 exception MapFailure of string
@@ -15,35 +20,45 @@ module Make (Job : MapReduce.Job) = struct
      useful. Or, you can pass [~how:`Parallel] as an argument to the
      [Deferred.List] functions.*)
 
+  let map_reduce inputs =
+  	(* connect to each worker *)
+  	let workers = Deferred.List.map ~how:`Parallel !addr ~f:
+	  	(fun x -> match x with 
+	  		| (host, port) ->
+	  			match try_with (fun _ -> Tcp.connect(Tcp.to_host_and_port host port)) with
+	  			| Core.Std.Error _ -> (*TODO: num_workers := !num_workers - 1; 
+	  				if (!num_workers <= 0) 
+	  					then raise InfrastructureFailure *) failwith "No workers connected"
+	  	) in
+	  (* push each worker onto queue *)
+	let queue = Deferred.List.fold workers (AQueue.create ())
+	  	(fun q w-> AQueue.push q w) in
 
- (*  let reduce (k, vs) =
-    Job.reduce (k, vs) >>| fun out -> (k, out)
-
-  module C = Combiner.Make(Job)*)
-
-  let deferred_map (l: 'a list) (f: 'a -> 'b Deferred.t) : 'b list Deferred.t =
-	(* convert 'a list to 'b deferred list *)
-	let list_of_deferred = 
-		List.fold_right (fun acc x -> (f x)::acc) l [] in 
-	(* convert 'b deferred list to 'b list differed *)
-	List.fold_right 
-	(fun x acc -> 
-		x >>= (fun h -> 
-		acc >>= (fun t -> 
-		Deferred.return (h::t)))) 
-		list_of_deferred (Deferred.return [])
-
-  let map_reduce inputs = 
-  	(deferred_map (!addr) 
-  	(fun x -> match x with 
-  	| (host, port) -> 
-  		try Tcp.connect(Tcp.to_host_and_port host port)) 
-  		with InfrastructureFailure -> "cannot make connection to port: %i" port)
-  )
-    (* deferred_map inputs Job.map
-    >>| List.flatten
-    >>| C.combine
-    >>= deferred_map inputs reduce *)
+	(* map phase, send input to workers *)
+	Deferred.List.map ~how:'Parallel inputs ~f:
+	(fun input ->
+		(* pop worker from queue *) 
+		AQueue.pop queue >>=
+			(* send input to worker through its writer *)
+			(fun (sock, r, w) ->  WorkerRequest(Job).send w input; 
+				(* receive inter from worker *)
+				let res = WorkerResponse(Job).receive r in
+				(* push worker back to queue *)
+				AQueue.push queue (sock, r w); res)
+	)
+		(* combine phase *)
+		>>| List.flatten
+		>>| C.combine
+		(* reduce phase *)
+		>>= Deferred.List.map ~how:'Parallel ~f:
+		(fun inter -> 
+			(* pop worker from queue *)
+			AQueue.pop queue >>= 
+				(* *)
+				(fun (sock, r, w) -> WorkerRequest(Job).send w inter;
+					let res = WorkerResponse(Job).recieve r in
+					AQueue.push queue (sock, r, w); res))
+		)
 end
 
 

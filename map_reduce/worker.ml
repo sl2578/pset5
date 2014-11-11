@@ -3,8 +3,10 @@ open Async.Std
 module Make (Job : MapReduce.Job) = struct
 
   (* see .mli *)
-  let run r w =
-    failwith "Nowhere special?  I always wanted to go there."
+  let rec run r w =
+    match (WorkerRequest(Job).recieve r) with
+    | MapRequest input -> return WorkerResponse(Job).send w (Job.map input)
+    | ReduceRequest (k, inter) -> return WorkerResponse(Job).send w (Job.reduce inter)
 
 end
 

@@ -35,8 +35,8 @@ module Make (Job : MapReduce.Job) = struct
 	  	(fun q w-> AQueue.push q w) in
 
 	(* map phase, send input to workers *)
-	Deferred.List.map ~how:'Parallel inputs ~f:
-	(fun input ->
+	Deferred.List.map ~how:'Parallel inputs 
+	~f:(fun input ->
 		(* pop worker from queue *) 
 		AQueue.pop queue >>=
 			(* send input to worker through its writer *)
@@ -51,13 +51,13 @@ module Make (Job : MapReduce.Job) = struct
 		>>| C.combine
 		(* reduce phase *)
 		>>= Deferred.List.map ~how:'Parallel ~f:
-		(fun inter -> 
+		(fun (k, inter) -> 
 			(* pop worker from queue *)
 			AQueue.pop queue >>= 
 				(* *)
-				(fun (sock, r, w) -> WorkerRequest(Job).send w inter;
+				(fun (sock, r, w) -> WorkerRequest(Job).send w (k, inter);
 					let res = WorkerResponse(Job).recieve r in
-					AQueue.push queue (sock, r, w); res))
+					AQueue.push queue (sock, r, w); return (k, res))
 		)
 end
 

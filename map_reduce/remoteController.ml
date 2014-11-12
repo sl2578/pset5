@@ -30,7 +30,7 @@ module Make (Job : MapReduce.Job) = struct
   	Deferred.List.iter ~how:`Parallel !addr
   	~f:(fun (host, port) ->
   		Tcp.connect (Tcp.to_host_and_port host port) >>=
-  		(fun worker -> return (AQueue.push queue worker))
+  		(fun worker -> AQueue.push queue worker; ())
   	);
 
 		(* map phase: send input to workers *)

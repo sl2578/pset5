@@ -13,7 +13,7 @@ end
 
 (** Utility class for implementing the Marshalable interface *)
 module Marshaller = struct
-  let receive r = Reader.read_marshal r
+  let receive r = print_string "hello sir "; Reader.read_marshal r
   let send w v  = Writer.write_marshal w [] v
 end
 

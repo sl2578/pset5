@@ -1,16 +1,22 @@
 open Async.Std
+open Protocol
 
 module Make (Job : MapReduce.Job) = struct
+  module Request = WorkerRequest(Job)
+  module Response = WorkerResponse(Job)
 
   (* see .mli *)
-  let run r w =
-    match (WorkerRequest(Job).receive r) with
-    | 'Ok MapRequest input ->
-      return (WorkerResponse(Job).send w (MapResult (Job.map input)))
-    | 'Ok ReduceRequest input ->
-      return (WorkerResponse(Job).send w (ReduceResult (Job.reduce input)))
+  let rec run r w =
+    print_string "working run"; 
+    Request.receive r >>= function
+    | `Ok Request.MapRequest input ->
+      Job.map input >>=
+      (fun res -> Response.send w (Response.MapResult res); run r w)
+    | `Ok Request.ReduceRequest (key, inter_lst) ->
+      Job.reduce (key, inter_lst) >>=
+      (fun res -> Response.send w (Response.ReduceResult res); run r w)
     (* finish processing all inputs/jobs *)
-    | 'Eof -> return ()
+    | `Eof -> return ()
 end
 
 (* see .mli *)
@@ -20,8 +26,8 @@ let init port =
     (Tcp.on_port port)
     (fun _ r w ->
       Reader.read_line r >>= function
-        | `Eof    -> return ()
-        | `Ok job -> match MapReduce.get_job job with
+        | `Eof    ->  return ()
+        | `Ok job -> print_string "hello sir "; match MapReduce.get_job job with
           | None -> return ()
           | Some j ->
             let module Job = (val j) in

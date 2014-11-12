@@ -8,5 +8,5 @@ let () = Command.async_basic
       +> anon ("port" %: int)
     )
     (fun port () -> Worker.init port)
-  |> Command.run
+  |>  Command.run
 

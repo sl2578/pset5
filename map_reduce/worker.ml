@@ -4,8 +4,11 @@ module Make (Job : MapReduce.Job) = struct
 
   (* see .mli *)
   let run r w =
-    failwith "Nowhere special?  I always wanted to go there."
-
+    match (WorkerRequest(Job).receive r) with
+    | 'Ok MapRequest input -> return WorkerResponse(Job).send w (Job.map input)
+    | 'Ok ReduceRequest input -> return WorkerResponse(Job).send w (Job.reduce input)
+    (* finish processing all inputs/jobs *)
+    | 'Eof -> return ()
 end
 
 (* see .mli *)

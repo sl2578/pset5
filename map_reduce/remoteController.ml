@@ -27,22 +27,28 @@ module Make (Job : MapReduce.Job) = struct
   let map_reduce inputs =
   	(* create queue of workers *)
   	let queue = AQueue.create () in
-  	Deferred.List.iter ~how:`Parallel !addr
+(*   	Deferred.List.iter ~how:`Parallel !addr
   	~f:(fun (host, port) ->
   		Tcp.connect (Tcp.to_host_and_port host port) >>=
-  		(fun worker -> AQueue.push queue worker; ())
+  		(fun worker -> AQueue.push queue worker)
   	);
+ *)
+  Deferred.List.map ~how:`Parallel !addr
+  ~f:(fun (host, port) ->
+  Tcp.connect (Tcp.to_host_and_port host port) >>= 
+  (fun (sock, r, w) -> return(AQueue.push queue (r,w)))
+	) >>= fun _ ->
 
 		(* map phase: send input to workers *)
 		Deferred.List.map ~how:`Parallel inputs
 		~f:(fun input -> AQueue.pop queue >>=
-			(fun (sock, r, w) ->
+			(fun (r, w) ->
 				Request.send w (Request.MapRequest input);
 				Response.receive r >>=
 				(fun result ->
 					match result with
 					| `Ok (Response.MapResult res) ->
-						AQueue.push queue (sock, r, w); return res
+						AQueue.push queue (r, w); return res
 					| `Ok (Response.ReduceResult res) ->
 						failwith "Unexpected reduce result."
 					| `Ok (Response.JobFailed str) -> failwith str
@@ -56,13 +62,13 @@ module Make (Job : MapReduce.Job) = struct
 		(* reduce phase: send inters to workers *)
 		>>= Deferred.List.map ~how:`Parallel
 		~f:(fun (key, inter) -> AQueue.pop queue >>=
-			(fun (sock, r, w) ->
+			(fun (r, w) ->
 				Request.send w (Request.ReduceRequest (key, inter));
 				Response.receive r >>=
 				(fun result ->
 					match result with
 					| `Ok (Response.ReduceResult res) ->
-						AQueue.push queue (sock, r, w); return (key, res)
+						AQueue.push queue (r, w); return (key, res)
 					| `Ok (Response.MapResult res) ->
 						failwith "Unexpected reduce result."
 					| `Ok (Response.JobFailed str) -> failwith str

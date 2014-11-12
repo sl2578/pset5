@@ -44,7 +44,7 @@ module Make (Job : MapReduce.Job) = struct
 		~f:(fun input -> AQueue.pop queue >>=
 			(* send a MapRequest to worker *)
 			(fun (sock, r, w) ->
-				Request.send w (Request.MapRequest input);
+				Request.send w (input);
 				(* receive worker result and push it back onto queue*)
 				Response.receive r >>=
 				(fun result ->

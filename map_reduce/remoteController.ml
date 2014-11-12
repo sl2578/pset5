@@ -25,46 +25,50 @@ module Make (Job : MapReduce.Job) = struct
 	module C = Combiner.Make(Job)
 
   let map_reduce inputs =
+  	(* create queue of workers *)
   	let queue = AQueue.create () in
   	Deferred.List.iter ~how:`Parallel !addr
   	~f:(fun (host, port) ->
-  		(* get socket and push onto queue *)
   		Tcp.connect (Tcp.to_host_and_port host port) >>=
-  		(fun worker -> return (AQueue.push queue worker)));
-
-(*   	let workers = Deferred.List.map ~how:`Parallel !addr
-  		~f:(fun (host, port) ->
-  			Tcp.connect (Tcp.to_host_and_port host port)) in
-  	let queue = AQueue.create () in
-		Deferred.List.iter ~how:`Parallel workers
-			~f:(fun w -> AQueue.push queue w); *)
+  		(fun worker -> return (AQueue.push queue worker))
+  	);
 
 		(* map phase: send input to workers *)
 		Deferred.List.map ~how:`Parallel inputs
 		~f:(fun input -> AQueue.pop queue >>=
-			(* send a MapRequest to worker *)
 			(fun (sock, r, w) ->
-				Request.send w (input);
-				(* receive worker result and push it back onto queue*)
+				Request.send w (Request.MapRequest input);
 				Response.receive r >>=
 				(fun result ->
 					match result with
-					| `Ok r -> AQueue.push queue (sock, r, w); r
-					| `Eof -> AQueue.push queue (sock, r, w)
+					| `Ok (Response.MapResult res) ->
+						AQueue.push queue (sock, r, w); return res
+					| `Ok (Response.ReduceResult res) ->
+						failwith "Unexpected reduce result."
+					| `Ok (Response.JobFailed str) -> failwith str
+					| `Eof -> failwith "Connection to worker closed unexpectedly."
 				)
 			)
 		)
 		(* combine phase *)
 		>>| List.flatten
 		>>| C.combine
-		(* reduce phase *)
-		>>= Deferred.List.map ~how:`Parallel inputs
-		~f:(fun inter -> AQueue.pop queue >>= 
+		(* reduce phase: send inters to workers *)
+		>>= Deferred.List.map ~how:`Parallel
+		~f:(fun (key, inter) -> AQueue.pop queue >>=
 			(fun (sock, r, w) ->
-				Request.send w (ReduceRequest (k, inter));
-				(* receive worker result *)
-				let res = Response.receive r in
-				AQueue.push queue (sock, r, w); return (k, res))
+				Request.send w (Request.ReduceRequest (key, inter));
+				Response.receive r >>=
+				(fun result ->
+					match result with
+					| `Ok (Response.ReduceResult res) ->
+						AQueue.push queue (sock, r, w); return (key, res)
+					| `Ok (Response.MapResult res) ->
+						failwith "Unexpected reduce result."
+					| `Ok (Response.JobFailed str) -> failwith str
+					| `Eof -> failwith "Connection to worker closed unexpectedly."
+				)
+			)
 		)
 end
 

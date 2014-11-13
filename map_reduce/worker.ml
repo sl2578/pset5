@@ -27,7 +27,7 @@ let init port =
     (fun _ r w ->
       Reader.read_line r >>= function
         | `Eof    ->  return ()
-        | `Ok job -> print_string "hello sir "; match MapReduce.get_job job with
+        | `Ok job -> match MapReduce.get_job job with
           | None -> return ()
           | Some j ->
             let module Job = (val j) in

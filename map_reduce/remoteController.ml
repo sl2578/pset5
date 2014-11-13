@@ -29,7 +29,7 @@ module Make (Job : MapReduce.Job) = struct
   	let queue = AQueue.create () in
 	  Deferred.List.map ~how:`Parallel !addr
 		  ~f:(fun (host, port) ->
-		  	Tcp.connect (Tcp.to_host_and_port host port) >>= 
+		  	print_string "conencting"; Tcp.connect (Tcp.to_host_and_port host port) >>= 
 		  	(fun (sock, r, w) -> return(AQueue.push queue (r,w)))
 			) >>= fun _ ->
 

@@ -9,15 +9,15 @@ module Make (Job : MapReduce.Job) = struct
   let rec run r w =
     Request.receive r >>= function
     | `Ok Request.MapRequest input ->
-      (try_with (fun () -> Job.map input) >>| function
+      (try_with (fun () -> Job.map input) >>= function
       | Core.Std.Ok res -> Response.send w (Response.MapResult res); run r w
-      | Core.Std.Error _ -> Response.send w (Response.JobFailed "Map failed"))
+      | Core.Std.Error _ -> Response.send w (Response.JobFailed "Map failed"); run r w)
     | `Ok Request.ReduceRequest (key, inter_lst) ->
-      (try_with (fun () -> Job.reduce (key, inter_lst)) >>| function
+      (try_with (fun () -> Job.reduce (key, inter_lst)) >>= function
       | Core.Std.Ok res -> Response.send w (Response.ReduceResult res); run r w
-      | Core.Std.Error _ -> Response.send w (Response.JobFailed "Reduce failed"))
+      | Core.Std.Error _ -> Response.send w (Response.JobFailed "Reduce failed"); run r w)
     (* finish processing all inputs/jobs *)
-    | `Eof -> failwith "worker closing connection."
+    | `Eof -> return ()
 end
 
 (* see .mli *)

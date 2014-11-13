@@ -7,16 +7,17 @@ module Make (Job : MapReduce.Job) = struct
 
   (* see .mli *)
   let rec run r w =
-    print_string "worker received request"; 
     Request.receive r >>= function
     | `Ok Request.MapRequest input ->
-      Job.map input >>=
-      (fun res -> Response.send w (Response.MapResult res); run r w)
+      (try_with (fun () -> Job.map input) >>| function
+      | Core.Std.Ok res -> Response.send w (Response.MapResult res); run r w
+      | Core.Std.Error _ -> Response.send w (Response.JobFailed "Map failed"))
     | `Ok Request.ReduceRequest (key, inter_lst) ->
-      Job.reduce (key, inter_lst) >>=
-      (fun res -> Response.send w (Response.ReduceResult res); run r w)
+      (try_with (fun () -> Job.reduce (key, inter_lst)) >>| function
+      | Core.Std.Ok res -> Response.send w (Response.ReduceResult res); run r w
+      | Core.Std.Error _ -> Response.send w (Response.JobFailed "Reduce failed"))
     (* finish processing all inputs/jobs *)
-    | `Eof -> failwith "worker closing connection"
+    | `Eof -> failwith "worker closing connection."
 end
 
 (* see .mli *)

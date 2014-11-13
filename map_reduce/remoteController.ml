@@ -3,12 +3,8 @@ open AQueue
 open Protocol
 
 let addr = ref []
-
 let num_workers = ref 0
-
 let init addrs = addr := addrs; num_workers := List.length !addr; ()
-
-
 
 exception InfrastructureFailure
 exception MapFailure of string
@@ -29,11 +25,14 @@ module Make (Job : MapReduce.Job) = struct
   	let queue = AQueue.create () in
 	  Deferred.List.map ~how:`Parallel !addr
 		  ~f:(fun (host, port) ->
-		  	Tcp.connect (Tcp.to_host_and_port host port) >>= 
-		  	(fun (sock, r, w) ->
+		  	try_with (fun () -> Tcp.connect (Tcp.to_host_and_port host port)) >>| function
+		  	| Core.Std.Ok (sock, r, w) -> 
 		  		Writer.write_line w Job.name; 
-		  		return(AQueue.push queue (r, w)))
-			) >>= fun _ ->
+		  		return(AQueue.push queue (r, w))
+		  	| Core.Std.Error _ -> num_workers := !num_workers-1;
+		  		if !num_workers <= 0 then raise InfrastructureFailure
+		  		else return ()
+		  ) >>= fun _ ->
 
 		(* map phase: send input to workers *)
 		Deferred.List.map ~how:`Parallel inputs
@@ -45,8 +44,8 @@ module Make (Job : MapReduce.Job) = struct
 							AQueue.push queue (r, w); return res
 						| `Ok (Response.ReduceResult res) ->
 							failwith "Unexpected reduce result."
-						| `Ok (Response.JobFailed str) -> print_string "c"; failwith str
-						| `Eof -> failwith "Connection to worker closed unexpectedly from map."
+						| `Ok (Response.JobFailed str) -> raise MapFailure str
+						| `Eof -> failwith "Connection to worker closed unexpectedly."
 					)
 				)
 		(* combine phase *)
@@ -64,7 +63,7 @@ module Make (Job : MapReduce.Job) = struct
 							AQueue.push queue (r, w); return (key, res)
 						| `Ok (Response.MapResult res) ->
 							failwith "Unexpected reduce result."
-						| `Ok (Response.JobFailed str) -> failwith str
+						| `Ok (Response.JobFailed str) -> raise ReduceFailure str
 						| `Eof -> failwith "Connection to worker closed unexpectedly."
 					)
 				)

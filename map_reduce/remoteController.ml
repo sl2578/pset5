@@ -39,15 +39,14 @@ module Make (Job : MapReduce.Job) = struct
 		Deferred.List.map ~how:`Parallel inputs
 			~f:(fun input -> AQueue.pop queue >>=
 				(fun (r, w) ->
-					print_string "mapping";
 					Request.send w (Request.MapRequest input);
 					Response.receive r >>= function
-						| `Ok (Response.MapResult res) -> print_string "a";
+						| `Ok (Response.MapResult res) ->
 							AQueue.push queue (r, w); return res
-						| `Ok (Response.ReduceResult res) -> print_string "b";
+						| `Ok (Response.ReduceResult res) ->
 							failwith "Unexpected reduce result."
 						| `Ok (Response.JobFailed str) -> print_string "c"; failwith str
-						| `Eof -> print_string "d"; failwith "Connection to worker closed unexpectedly."
+						| `Eof -> failwith "Connection to worker closed unexpectedly from map."
 					)
 				)
 		(* combine phase *)

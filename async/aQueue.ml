@@ -11,5 +11,5 @@ let push q x =
 let pop q =
 	match q with
 	| (r, w) -> Pipe.read r >>= function 
-	  	| `Ok re -> print_string "worker popped"; return re
+	  	| `Ok re -> return re
 	  	| `Eof -> failwith "Failed to pop onto Queue"

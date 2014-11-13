@@ -7,7 +7,7 @@ module Make (Job : MapReduce.Job) = struct
 
   (* see .mli *)
   let rec run r w =
-    print_string "working run"; 
+    print_string "received request : worker"; 
     Request.receive r >>= function
     | `Ok Request.MapRequest input ->
       Job.map input >>=
@@ -26,7 +26,7 @@ let init port =
     (Tcp.on_port port)
     (fun _ r w ->
       Reader.read_line r >>= function
-        | `Eof    ->  return ()
+        | `Eof    -> return ()
         | `Ok job -> match MapReduce.get_job job with
           | None -> return ()
           | Some j ->

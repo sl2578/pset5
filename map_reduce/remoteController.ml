@@ -24,13 +24,15 @@ module Make (Job : MapReduce.Job) = struct
 	module Response = WorkerResponse(Job)
 	module C = Combiner.Make(Job)
 
-  let map_reduce inputs =
+	let map_reduce inputs =
   	(* create queue of workers *)
   	let queue = AQueue.create () in
 	  Deferred.List.map ~how:`Parallel !addr
 		  ~f:(fun (host, port) ->
-		  	print_string "conencting"; Tcp.connect (Tcp.to_host_and_port host port) >>= 
-		  	(fun (sock, r, w) -> return(AQueue.push queue (r,w)))
+		  	Tcp.connect (Tcp.to_host_and_port host port) >>= 
+		  	(fun (sock, r, w) ->
+		  		Writer.write_line w Job.name; 
+		  		return(AQueue.push queue (r, w)))
 			) >>= fun _ ->
 
 		(* map phase: send input to workers *)
